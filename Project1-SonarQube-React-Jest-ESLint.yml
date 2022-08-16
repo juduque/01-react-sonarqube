@@ -1,0 +1,150 @@
+
+# Paso 1
+# se crea el projecto de react
+# Este comando descarga el template y las dependencias 
+
+npx create-react-app react-sonarqube --template typescript
+
+# cd react-sonarqube
+
+# Paso 2 
+# Se crea el archivo docker-compose.yaml y se pega lo siguiente
+# Nota: En este punto ya se puede lanzar la aplicación con npm run start
+
+#
+version: "3"
+services:
+  sonarqube:
+    image: sonarqube:community
+    depends_on:
+      - db
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    ports:
+      - "9000:9000"
+  db:
+    image: postgres:12
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
+      POSTGRES_DB: sonar
+    volumes:
+      - postgresql:/var/lib/postgresql
+      - postgresql_data:/var/lib/postgresql/data
+
+volumes:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  postgresql:
+  postgresql_data:
+#
+
+# paso 3
+# Lanzar docker compose 
+
+docker compose up
+
+# Para cambiar la memoria asignada a docker  # sysctl -w vm.max_map_count=262144
+# usuario: admin y contraseña: admin2
+
+
+# Paso 4
+# Instlar el paquete sonarqube-scanner
+# -- save-dev  - instala el paquete como dependencia de desarrollo
+# Importante instalar en la carpeta del proyecto 
+
+npm install --save-dev sonarqube-scanner
+
+# Paso 5 
+# En la carpeta src en el archivo App.tsx 
+# Se pega en la linea 7
+
+  //'Empty block statement' code smell
+  try {
+  } catch (e) {}
+
+# Paso 6 
+# Creamos el archivo sonarqube-scanner.js en la ruta del projecto 
+# touch sonarqube-scanner.js
+# En el archivo creado pegamos la siguientes información 
+# Este archivo sirve para generar el reporte que genera sonarqube
+
+const scanner = require('sonarqube-scanner');
+scanner(
+  {
+  serverUrl: "http://localhost:9000",
+  login:"admin",
+  password:"admin2",
+  options: {
+    "sonar.sources": "./src"
+  },
+},
+() => process.exit()
+);
+
+# Paso 7 
+# Correr el archivo sonarqube-scanner.js  con --> node sonarqube-scanner.js 
+
+node sonarqube-scanner.js 
+
+# Paso 8 
+# Se instala la libreria jest-sonar-reporter que permite correr jest con sonarqube
+
+npm install --save-dev jest-sonar-reporter
+
+# Paso 9 
+# Pegamos a nuiestro archivo sonarqube-scanner.js el siguientes texto en la linea 9
+
+"sonar.exclusions": "**/*.test.tsx",
+"sonar.tests": "./src",
+"sonar.test.inclusions": "**/*.test.tsx,**/*.test.ts",
+"sonar.typescript.lcov.reportPaths": "coverage/lcov.info",
+"sonar.testExecutionReportPaths": "test-report.xml"
+
+# Paso 10 
+# En el archivo package.json sustituimos la linea 22 "test": "react-scripts test", por lo siguiente
+
+"test": "react-scripts test --watchAll=false --coverage --testResultsProcessor jest-sonar-reporter",
+
+
+# Paso 11 
+# Corremos la aplicación con 
+# Importante: Crear el archivo test.report.xml en la carpeta del projecto
+
+npm run test
+
+# Corremos node sonarqube-scanner.js para visualizar lo generado en test-report.xml
+
+node sonarqube-scanner.js
+
+# ESlint es el linting de Javascript
+
+# Paso 11 
+# Agregamos la linea "sonar.eslint.reportPaths":"eslint-report.json" al archivo de 
+# configuración de sonarqube 'sonarqube-scanner.js' en la linea 14
+
+"sonar.eslint.reportPaths":"eslint-report.json"
+
+# De esta forma ya podemos detectar errores en javascript 
+
+# En src/App.tsx en la linea 7 agregamos lo siguiente 
+
+  const unusedVar = "";
+
+# Variable sin utilizar para probar nuestro código
+
+# Tambien instalamos la siguiente dependencia en el projecto, que corre ESlint y 
+# genera un reporte eslint-report.json
+
+npx eslint -f json -o eslint-report.json .
+
+# Corremos nuevamente 
+ 
+node sonarqube-scanner.js
